@@ -1,0 +1,7 @@
+[package]
+name = "ilvm"
+version = "0.1.0"
+authors = ["Arjun Guha <arjun@cs.umass.edu>"]
+
+[dependencies]
+combine = "3.6.2"
