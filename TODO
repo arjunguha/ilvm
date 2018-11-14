@@ -1,0 +1,3 @@
+- [ ] Set heap size and #registers from command line
+- [ ] Test malloc and free
+- [ ] Document concrete syntax
