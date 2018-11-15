@@ -29,6 +29,10 @@ fn eval_op2(op2: &Op2, m: i32, n: i32) -> i32 {
         Op2::Add => m + n,
         Op2::Sub => m - n,
         Op2::Mul => m * n,
+        Op2::Div => m / n,
+        Op2::Mod => m % n,
+        Op2::LT => if m < n { 1 } else { 0 },
+        Op2::Eq => if m == n { 1 } else { 0 }
     }
 }
 

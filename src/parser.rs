@@ -56,10 +56,14 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
         .or(string("free").map(|_x| Tok::Free))
         .or(string("block").map(|_x| Tok::Block))
         .or(string(";").map(|_x| Tok::Semi))
+        .or(attempt(string("==")).map(|_x| Tok::Op2(Op2::Eq)))
         .or(string("=").map(|_x| Tok::Equal))
         .or(string("+").map(|_x| Tok::Op2(Op2::Add)))
         .or(string("-").map(|_x| Tok::Op2(Op2::Sub)))
         .or(string("*").map(|_x| Tok::Op2(Op2::Mul)))
+        .or(string("/").map(|_x| Tok::Op2(Op2::Div)))
+        .or(string("%").map(|_x| Tok::Op2(Op2::Mod)))
+        .or(string("<").map(|_x| Tok::Op2(Op2::LT)))
         .or((optional(char('-').or(char('+'))), many1(digit())).map(
             |(sign, digits): (Option<char>, String)| {
                 let n = digits.parse::<i32>().unwrap();

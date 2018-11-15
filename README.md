@@ -147,9 +147,10 @@ Values          val ::= r
 Operators        op ::= "+"
                       | "-"
                       | "*"
-                      | "="
+                      | "/"
+                      | "%"
+                      | "=="
                       | "<"
-                      | ">"
 
 Instructions  instr ::= "goto" "(" val ")" ";"
                       | "exit" "(" val ")" ";"
