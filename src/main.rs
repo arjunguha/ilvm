@@ -80,6 +80,28 @@ mod tests {
     }
 
     #[test]
+    fn test_trailing_whitespace() {
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                exit(200);
+            }  "#,
+        ).unwrap();
+        assert!(r == 200);
+    }
+
+    #[test]
+    fn test_trailing_garbage() {
+        let r = super::parser::parse(
+            r#"
+            block 0 {
+                exit(200);
+            }  xxx"#,
+        );
+        assert!(r.is_err());
+    }
+
+    #[test]
     fn test_exit() {
         let r = parse_and_eval(
             r#"

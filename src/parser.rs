@@ -6,7 +6,8 @@ use combine::parser::char::{char, digit, spaces, string};
 use combine::stream::easy;
 use combine::stream::Stream;
 use combine::{
-    attempt, between, many1, optional, satisfy_map, sep_by, token, Parser,
+    attempt, between, eof, many1, optional, satisfy_map, sep_end_by, token,
+    Parser,
 };
 use error::Error;
 use std::fmt;
@@ -73,7 +74,12 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
 
     let ws = spaces();
 
-    let mut toks = spaces().with(sep_by(tok, ws));
+    let mut toks = spaces().with(sep_end_by(tok, ws)).skip(eof()).map(
+        |mut tokens: Vec<Tok>| {
+            tokens.push(Tok::Eof);
+            tokens
+        },
+    );
     toks.easy_parse(s).map(|tuple| tuple.0)
 }
 
@@ -243,9 +249,7 @@ where
 pub fn parse(input: &str) -> Result<Vec<Block>, Error> {
     match lex(input) {
         Result::Err(e) => Result::Err(Error::Parse(format!("{:?}", e))),
-        Result::Ok(mut tokens) => {
-            tokens.push(Tok::Eof);
-            // Force at least one block.
+        Result::Ok(tokens) => {
             let mut ast = many1(block()).skip(token(Tok::Eof));
             match ast.easy_parse(&tokens[..]) {
                 Result::Err(e) => Result::Err(Error::Parse(format!("{:?}", e))),
