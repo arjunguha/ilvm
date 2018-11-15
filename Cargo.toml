@@ -5,3 +5,4 @@ authors = ["Arjun Guha <arjun@cs.umass.edu>"]
 
 [dependencies]
 combine = "3.6.2"
+clap = "2.32.0"

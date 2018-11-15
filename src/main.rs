@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate combine;
+extern crate clap;
 
 mod error;
 mod eval;
@@ -9,30 +10,56 @@ mod parser;
 mod syntax;
 mod tc;
 
+use clap::{App, Arg};
 use error::*;
-use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::process;
 
-fn parse_and_eval(code: &str) -> Result<i32, Error> {
+fn parse_and_eval(
+    code: &str,
+    mem_limit: usize,
+    reg_limit: usize,
+) -> Result<i32, Error> {
     let blocks = try!(parser::parse(code));
     let blocks = try!(tc::tc(blocks));
-    return eval::eval(1000, 10, blocks);
+    return eval::eval(mem_limit, reg_limit, blocks);
 }
 
 fn main_result() -> Result<i32, Error> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        return Err(Error::Usage(
-            "Missing command-line argument.\nUsage: ilvm filename".to_string(),
-        ));
-    }
-    let path = &args[1];
+    let args = App::new("ILVM")
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg(
+            Arg::with_name("memlimit")
+                .short("m")
+                .long("memory-limit")
+                .value_name("MEM_LIMIT")
+                .default_value("1024")
+                .help("Sets a memory limit in words")
+                .takes_value(true),
+        ).arg(
+            Arg::with_name("INPUT")
+                .value_name("FILENAME")
+                .help("Sets the input file to use")
+                .required(true)
+                .index(1),
+        ).arg(
+            Arg::with_name("reglimit")
+                .short("r")
+                .value_name("REG_LIMIT")
+                .default_value("32")
+                .long("num-registers")
+                .help("Set the number of registers"),
+        ).get_matches();
+    let path = args.value_of("INPUT").unwrap();
     let mut file = try!(File::open(&path));
     let mut buf = String::new();
     try!(file.read_to_string(&mut buf));
-    parse_and_eval(&buf[..])
+    parse_and_eval(
+        &buf[..],
+        args.value_of("memlimit").unwrap().parse::<usize>().unwrap(),
+        args.value_of("reglimit").unwrap().parse::<usize>().unwrap(),
+    )
 }
 
 fn main() {
@@ -48,7 +75,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
 
-    use super::parse_and_eval;
+    fn parse_and_eval(code: &str) -> Result<i32, super::error::Error> {
+        super::parse_and_eval(code, 500, 10)
+    }
 
     #[test]
     fn test_exit() {
@@ -150,6 +179,29 @@ mod tests {
             }"#,
         ).unwrap();
         assert!(r == 30);
+    }
+
+    #[test]
+    fn test_fac() {
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                r2 = 1;
+                r1 = 5;
+                goto(1);
+            }
+            block 1 {
+                ifz r1 {
+                   exit(r2);
+                }
+                else {
+                    r2 = r2 * r1;
+                    r1 = r1 - 1;
+                    goto(1);
+                }
+            }"#,
+        ).unwrap();
+        assert!(r == 120);
     }
 
 }
