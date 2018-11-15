@@ -115,7 +115,7 @@ that sub-blocks are not numbered. Therefore, a program cannot use
 The *exit(n)* instruction terminates the program normally, and produces
 the value *n*. The *abort;* instruction is an abnormal exit and should be
 avoided if possible. Note that the sequence of instructions
-in every block *must* with either *exit*, *goto*, or *abort*. In other
+in every block *must* end with either *exit*, *goto*, or *abort*. In other
 words, a program cannot "fall-through" from one block to the next, and must
 explicitly jump to another block or terminate.
 
