@@ -121,19 +121,22 @@ explicitly jump to another block or terminate.
 
 ### Memory allocation
 
-A program can read and write to any memory address. The initial value
-of all memory addresses and registers is zero.
+The *word size* of ILVM is 32-bits.
 
-For convenience, ILVM has a *malloc(n)* instruction that returns the address of
-a free block of memory that is *n* words long, and a *free(a)* instruction that
+A program can read and write to any memory address. The initial value stored at
+all memory addresses and registers is zero. Each memory location and register
+is one word long (i.e., 32 bits).
+
+ILVM has a *malloc(n)* instruction that returns the address of
+a free block of memory that is *n* **words** long, and a *free(a)* instruction that
 frees the block that was allocated at the address *a*. It may be convenient
 to use these functions instead of writing an allocation manually. Note that
 these operators maintain their metadata in an independent part of memory, so
 it is not possible for an ill-behaved program to corrupt the state that
 *malloc* and *free* require.
 
-Programs do not have to use ILVMs memory allocation primitives. They
-can simply write to memory, and if the address is valid, 
+Programs do not have to use *malloc* and *free*. However, it may be convenient
+to do so.
 
 Concrete Syntax
 ---------------
