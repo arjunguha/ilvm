@@ -166,6 +166,7 @@ Blocks        block ::= "block" n "{" instr "}"
 
 Programs          p ::= block
                       | block p
+```
 
 Command-Line Interface
 ----------------------
