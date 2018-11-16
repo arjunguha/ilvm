@@ -2,6 +2,13 @@
 name = "ilvm"
 version = "0.2.0"
 authors = ["Arjun Guha <arjun@cs.umass.edu>"]
+description = "An interpreter for an assembly-like language"
+license = "BSD-3-Clause"
+repository = "https://github.com/plasma-umass/ilvm"
+readme = "README.md"
+
+[badges]
+travis-ci = { repository = "plasma-umass/ilvm", branch = "master" }
 
 [dependencies]
 combine = "3.6.2"
