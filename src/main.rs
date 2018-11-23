@@ -226,4 +226,17 @@ mod tests {
         assert!(r == 120);
     }
 
+    #[test]
+    fn test_malloc() {
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                r0 = malloc(10);
+                exit(r0);
+            }"#,
+        ).unwrap();
+        assert!(r == 1);
+    }
+
+
 }

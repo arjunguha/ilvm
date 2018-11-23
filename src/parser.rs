@@ -132,6 +132,7 @@ enum AfterReg {
     Load(Val), // *v
     Copy(Val),
     Op2(Op2, Val, Val),
+    Malloc(Val)
 }
 
 fn instr_<I>() -> impl Parser<Input = I, Output = Instr>
@@ -173,14 +174,19 @@ where
                     ).map(|(v1, v2opt)| match v2opt {
                         None => AfterReg::Copy(v1),
                         Some((op, v2)) => AfterReg::Op2(op, v1, v2),
-                    })),
+                    }))
+                .or(token(Tok::Malloc)
+                    .with(between(token(Tok::LParen), token(Tok::RParen),
+                        val()))
+                    .skip(token(Tok::Semi))
+                    .map(|v| AfterReg::Malloc(v)))
         ).and(instr())
         .map(|((r, k), rest)| match k {
             AfterReg::Load(v) => Instr::Load(r, v, Box::new(rest)),
             AfterReg::Copy(v) => Instr::Copy(r, v, Box::new(rest)),
-            AfterReg::Op2(op, v1, v2) => {
-                Instr::Op2(r, op, v1, v2, Box::new(rest))
-            }
+            AfterReg::Op2(op, v1, v2) =>
+                Instr::Op2(r, op, v1, v2, Box::new(rest)),
+            AfterReg::Malloc(v) => Instr::Malloc(r, v, Box::new(rest))
         });
 
     let load = reg()
@@ -206,14 +212,6 @@ where
         .and(between(token(Tok::LBrace), token(Tok::RBrace), instr()))
         .map(|((v, tru), fls)| Instr::IfZ(v, Box::new(tru), Box::new(fls)));
 
-    let malloc = token(Tok::Malloc)
-        .with(reg())
-        .skip(token(Tok::Equal))
-        .and(between(token(Tok::LParen), token(Tok::RParen), val()))
-        .skip(token(Tok::Semi))
-        .and(instr())
-        .map(|((r, v), rest)| Instr::Malloc(r, v, Box::new(rest)));
-
     let free = token(Tok::Free)
         .with(between(token(Tok::LParen), token(Tok::RParen), reg()))
         .skip(token(Tok::Semi))
@@ -226,7 +224,6 @@ where
         .or(load)
         .or(store)
         .or(ifz)
-        .or(malloc)
         .or(free)
 }
 
