@@ -139,17 +139,19 @@ fn eval_rec(st: &mut State, env: &Env, instr: &Instr) -> R {
         Instr::Malloc(r, v, rest) => {
             let n = eval_val(&st.registers, v) as usize;
             if n == 0 {
-                return Err(Error::Runtime("malloc (0)".to_string()));
+                st.registers[*r] = 0;
             }
-            let mut nil_list = FreeList::Nil;
-            std::mem::swap(&mut st.free_list, &mut nil_list);
-            let (free_list2, ptr) = try!(
-                malloc(nil_list, n)
-                    .ok_or(Error::Runtime("malloc OOM".to_string()))
-            );
-            st.free_list = free_list2;
-            st.registers[*r] = ptr as i32;
-            st.alloc_blocks.insert(ptr, n);
+            else {
+                let mut nil_list = FreeList::Nil;
+                std::mem::swap(&mut st.free_list, &mut nil_list);
+                let (free_list2, ptr) = try!(
+                    malloc(nil_list, n)
+                        .ok_or(Error::Runtime("malloc OOM".to_string()))
+                );
+                st.free_list = free_list2;
+                st.registers[*r] = ptr as i32;
+                st.alloc_blocks.insert(ptr, n);
+            }
             eval_rec(st, env, rest)
         }
         Instr::Free(r, rest) => {

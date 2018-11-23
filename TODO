@@ -1,4 +1,4 @@
-- [ ] Test malloc and free
+- [X] Test malloc and free
 - [X] Add operators =, < , >
 - [X] Document concrete syntax
 - [X] Set heap size and #registers from command line
