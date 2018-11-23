@@ -157,7 +157,7 @@ Operators        op ::= "+"
 
 Instructions  instr ::= "goto" "(" val ")" ";"
                       | "exit" "(" val ")" ";"
-                      | "abort" "(" ")" ";"
+                      | "abort" ";"
                       | r "=" val op val ";" instr
                       | r "=" val ";" instr
                       | r "=" "*" val ";" instr
