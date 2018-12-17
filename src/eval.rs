@@ -128,7 +128,7 @@ fn eval_rec(st: &mut State, env: &Env, instr: &Instr) -> R {
             }
         }
         Instr::Exit(v) => Result::Ok(eval_val(&st.registers, v)),
-        Instr::Abort() => Result::Ok(0),
+        Instr::Abort() => Result::Err(Error::Runtime("called abort".to_string())),
         Instr::IfZ(v, true_part, false_part) => {
             if eval_val(&st.registers, v) == 0 {
                 eval_rec(st, env, true_part)
