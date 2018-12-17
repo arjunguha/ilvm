@@ -1,6 +1,6 @@
 [package]
 name = "ilvm"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Arjun Guha <arjun@cs.umass.edu>"]
 description = "An interpreter for an assembly-like language"
 license = "BSD-3-Clause"

@@ -29,6 +29,7 @@ pub enum Instr {
     Store(Reg, Val, Box<Instr>),
     IfZ(Val, Box<Instr>, Box<Instr>),
     Malloc(Reg, Val, Box<Instr>),
+    Print(String, Box<Instr>),
     Free(Reg, Box<Instr>),
 }
 

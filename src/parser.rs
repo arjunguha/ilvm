@@ -2,7 +2,7 @@ extern crate combine;
 use syntax::*;
 
 use combine::error::ParseError;
-use combine::parser::char::{char, digit, spaces, string};
+use combine::parser::char::{char, digit, spaces, string,alpha_num};
 use combine::stream::easy;
 use combine::stream::Stream;
 use combine::{
@@ -26,11 +26,13 @@ pub enum Tok {
     Abort,
     Exit,
     Malloc,
+    Print,
     Free,
     Block,
     Op2(Op2),
     Int32(i32),
     Reg(usize),
+    Id(String),
     Eof,
 }
 
@@ -55,6 +57,7 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
         .or(string("malloc").map(|_x| Tok::Malloc))
         .or(string("free").map(|_x| Tok::Free))
         .or(string("block").map(|_x| Tok::Block))
+        .or(string("print").map(|_x| Tok::Print))
         .or(string(";").map(|_x| Tok::Semi))
         .or(attempt(string("==")).map(|_x| Tok::Op2(Op2::Eq)))
         .or(string("=").map(|_x| Tok::Equal))
@@ -74,7 +77,8 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
             },
         )).or(char('r')
             .with(many1(digit()))
-            .map(|n: String| Tok::Reg(n.parse::<usize>().unwrap())));
+            .map(|n: String| Tok::Reg(n.parse::<usize>().unwrap())))
+        .or(between(char('"'), char('"'), many1(alpha_num())).map(|x: String| Tok::Id(x)));
 
     let ws = spaces();
 
@@ -94,6 +98,17 @@ where
 {
     satisfy_map(|t| match t {
         Tok::Reg(n) => Option::Some(n),
+        _ => Option::None,
+    })
+}
+
+fn id<I>() -> impl Parser<Input = I, Output = String>
+where
+    I: Stream<Item = Tok>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    satisfy_map(|t| match t {
+        Tok::Id(n) => Option::Some(n),
         _ => Option::None,
     })
 }
@@ -218,6 +233,12 @@ where
         .and(instr())
         .map(|(r, rest)| Instr::Free(r, Box::new(rest)));
 
+    let print = token(Tok::Print)
+        .with(between(token(Tok::LParen), token(Tok::RParen), id()))
+        .skip(token(Tok::Semi))
+        .and(instr())
+        .map(|(r, rest)| Instr::Print(r, Box::new(rest)));
+
     goto.or(abort)
         .or(exit)
         .or(copy_or_op2)
@@ -225,6 +246,7 @@ where
         .or(store)
         .or(ifz)
         .or(free)
+        .or(print)
 }
 
 parser!{
