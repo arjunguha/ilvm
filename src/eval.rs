@@ -135,7 +135,7 @@ fn eval_rec(st: &mut State, env: &Env, instr: &Instr) -> R {
             let ptr = st.registers[*r] as usize;
             if ptr >= st.heap.len() {
                 return Err(Error::Runtime(format!(
-                    "*{} = *{:?} invalid address {}",
+                    "*{} = {:?} invalid address {}",
                     r, v, ptr
                 )));
             }
