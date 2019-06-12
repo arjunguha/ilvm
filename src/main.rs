@@ -75,8 +75,27 @@ fn main() {
 #[cfg(test)]
 mod tests {
 
+    use super::syntax::{Val, Printable, Instr};
+
     fn parse_and_eval(code: &str) -> Result<i32, super::error::Error> {
         super::parse_and_eval(code, 500, 10)
+    }
+
+    fn assert_code_eq_block(code : &str, expected_block : Instr) {
+        match super::parser::parse(code) {
+            Result::Ok(blocks) => {
+                match super::tc::tc(blocks) {
+                    Result::Ok(blocks) =>
+                    match blocks.get(&0) {
+                        Option::Some(block) => assert_eq!(*block, expected_block),
+                        _ => assert!(false, "no zero block found in")
+                    }
+                    _ => assert!(false, "tc returned Error")
+                }
+            }
+            Result::Err(super::Error::Parse(s)) => assert!(false, format!("parse error, {}", s)),
+            _ => assert!(false, format!("parse returned Error on input, {}", code))
+        };
     }
 
     #[test]
@@ -99,6 +118,21 @@ mod tests {
             }  xxx"#,
         );
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_print_parsing() {
+        let code =
+            r#"
+            block 0 {
+                print(r0);
+                exit(200);
+            }"#;
+        let expected_block =
+            Instr::Print(Printable::Val(Val::Reg(0)),
+            Box::new(Instr::Exit(Val::Imm(200))
+        ));
+        assert_code_eq_block(code, expected_block);
     }
 
     #[test]

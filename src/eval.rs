@@ -1,6 +1,6 @@
 use error::Error;
 use std::collections::HashMap;
-use syntax::{Instr, Op2, Val};
+use syntax::{Instr, Op2, Val, Printable};
 
 enum FreeList {
     Nil,
@@ -37,6 +37,13 @@ fn eval_op2(op2: &Op2, m: i32, n: i32) -> i32 {
 }
 
 type R = Result<i32, Error>;
+
+fn print_printable(st: &mut State, p: &Printable) {
+    match p {
+        Printable::Id(s) => println!("{}", s),
+        Printable::Val(v) => println!("{}", eval_val(&st.registers, &v)),
+    }
+}
 
 fn malloc(free_list: FreeList, size: usize) -> Option<(FreeList, usize)> {
     match free_list {
@@ -127,10 +134,10 @@ fn eval_rec(st: &mut State, env: &Env, instr: &Instr) -> R {
                 ))),
             }
         }
-        Instr::Print(s, rest) => {
-            println!("{}", s);
+        Instr::Print(p, rest) => {
+            print_printable(st, p);
             eval_rec(st, env, rest)
-        },
+        }
         Instr::Exit(v) => Result::Ok(eval_val(&st.registers, v)),
         Instr::Abort() => Result::Err(Error::Runtime("called abort".to_string())),
         Instr::IfZ(v, true_part, false_part) => {
