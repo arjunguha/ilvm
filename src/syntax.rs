@@ -19,6 +19,12 @@ pub enum Op2 {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Printable {
+    Id(String),
+    Val(Val)
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Instr {
     Goto(Val),
     Exit(Val),
@@ -29,7 +35,7 @@ pub enum Instr {
     Store(Reg, Val, Box<Instr>),
     IfZ(Val, Box<Instr>, Box<Instr>),
     Malloc(Reg, Val, Box<Instr>),
-    Print(String, Box<Instr>),
+    Print(Printable, Box<Instr>),
     Free(Reg, Box<Instr>),
 }
 

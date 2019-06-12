@@ -102,17 +102,6 @@ where
     })
 }
 
-fn id<I>() -> impl Parser<Input = I, Output = String>
-where
-    I: Stream<Item = Tok>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    satisfy_map(|t| match t {
-        Tok::Id(n) => Option::Some(n),
-        _ => Option::None,
-    })
-}
-
 fn i32<I>() -> impl Parser<Input = I, Output = i32>
 where
     I: Stream<Item = Tok>,
@@ -141,6 +130,21 @@ where
         Tok::Op2(op) => Option::Some(op),
         _ => Option::None,
     })
+}
+
+fn printable<I>() -> impl Parser<Input = I, Output = Printable>
+where
+    I: Stream<Item = Tok>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    let id = satisfy_map(|p| match p {
+        Tok::Id(s) => Option::Some(Printable::Id(s)),
+        _ => Option::None,
+    });
+
+    let v = val().map(|v| Printable::Val(v));
+
+    id.or(v)
 }
 
 enum AfterReg {
@@ -234,7 +238,7 @@ where
         .map(|(r, rest)| Instr::Free(r, Box::new(rest)));
 
     let print = token(Tok::Print)
-        .with(between(token(Tok::LParen), token(Tok::RParen), id()))
+        .with(between(token(Tok::LParen), token(Tok::RParen), printable()))
         .skip(token(Tok::Semi))
         .and(instr())
         .map(|(r, rest)| Instr::Print(r, Box::new(rest)));
