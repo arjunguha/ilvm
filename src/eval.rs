@@ -42,6 +42,24 @@ fn print_printable(st: &mut State, p: &Printable) {
     match p {
         Printable::Id(s) => println!("{}", s),
         Printable::Val(v) => println!("{}", eval_val(&st.registers, &v)),
+        Printable::Seq(v1, v2) => {
+            let ptr = eval_val(&st.registers, &v1) as usize;
+            let len = eval_val(&st.registers, &v2) as usize;
+            if ptr + len >= st.heap.len() {
+                println!(
+                    "attempted to print invalid address {}",
+                    ptr + len
+                );
+            } else {
+                let idx_list = ptr..(ptr + len);
+                let vals = idx_list;
+                print!("[");
+                for val in vals {
+                    print!("{:?}; ", val);
+                }
+                println!("]");
+            }
+        }
     }
 }
 

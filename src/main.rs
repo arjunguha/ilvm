@@ -136,6 +136,21 @@ mod tests {
     }
 
     #[test]
+    fn test_print_seq_parsing() {
+        let code =
+            r#"
+            block 0 {
+                print( seq(r0, 6) );
+                exit(200);
+            }"#;
+        let expected_block =
+            Instr::Print(Printable::Seq(Val::Reg(0), Val::Imm(6)),
+            Box::new(Instr::Exit(Val::Imm(200))
+        ));
+        assert_code_eq_block(code, expected_block);
+    }
+
+    #[test]
     fn test_exit() {
         let r = parse_and_eval(
             r#"
