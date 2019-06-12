@@ -27,6 +27,8 @@ pub enum Tok {
     Exit,
     Malloc,
     Print,
+    Seq,
+    Comma,
     Free,
     Block,
     Op2(Op2),
@@ -58,6 +60,8 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
         .or(string("free").map(|_x| Tok::Free))
         .or(string("block").map(|_x| Tok::Block))
         .or(string("print").map(|_x| Tok::Print))
+        .or(string("seq").map(|_x| Tok::Seq))
+        .or(string(",").map(|_x| Tok::Comma))
         .or(string(";").map(|_x| Tok::Semi))
         .or(attempt(string("==")).map(|_x| Tok::Op2(Op2::Eq)))
         .or(string("=").map(|_x| Tok::Equal))
@@ -143,8 +147,12 @@ where
     });
 
     let v = val().map(|v| Printable::Val(v));
+    
+    let seq = token(Tok::Seq).skip(token(Tok::LParen)).with(val()).skip(token(Tok::Comma))
+        .and(val()).skip(token(Tok::RParen))
+        .map(|(v1, v2)| Printable::Seq(v1, v2));
 
-    id.or(v)
+    id.or(v).or(seq)
 }
 
 enum AfterReg {

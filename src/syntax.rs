@@ -21,7 +21,8 @@ pub enum Op2 {
 #[derive(Debug, PartialEq)]
 pub enum Printable {
     Id(String),
-    Val(Val)
+    Val(Val),
+    Seq(Val, Val),
 }
 
 #[derive(Debug, PartialEq)]
