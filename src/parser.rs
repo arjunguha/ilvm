@@ -27,7 +27,7 @@ pub enum Tok {
     Exit,
     Malloc,
     Print,
-    Seq,
+    Array,
     Comma,
     Free,
     Block,
@@ -53,14 +53,16 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
         .or(string(")").map(|_x| Tok::RParen))
         .or(string("ifz").map(|_x| Tok::Ifz))
         .or(string("goto").map(|_x| Tok::Goto))
-        .or(string("abort").map(|_x| Tok::Abort))
+        .or(char('a').with(
+            string("bort").map(|_x| Tok::Abort)
+            .or(string("rray").map(|_x| Tok::Array))
+        ))
         .or(attempt(string("else")).map(|_x| Tok::Else))
         .or(string("exit").map(|_x| Tok::Exit))
         .or(string("malloc").map(|_x| Tok::Malloc))
         .or(string("free").map(|_x| Tok::Free))
         .or(string("block").map(|_x| Tok::Block))
         .or(string("print").map(|_x| Tok::Print))
-        .or(string("seq").map(|_x| Tok::Seq))
         .or(string(",").map(|_x| Tok::Comma))
         .or(string(";").map(|_x| Tok::Semi))
         .or(attempt(string("==")).map(|_x| Tok::Op2(Op2::Eq)))
@@ -148,11 +150,11 @@ where
 
     let v = val().map(|v| Printable::Val(v));
     
-    let seq = token(Tok::Seq).skip(token(Tok::LParen)).with(val()).skip(token(Tok::Comma))
+    let array = token(Tok::Array).skip(token(Tok::LParen)).with(val()).skip(token(Tok::Comma))
         .and(val()).skip(token(Tok::RParen))
-        .map(|(v1, v2)| Printable::Seq(v1, v2));
+        .map(|(v1, v2)| Printable::Array(v1, v2));
 
-    id.or(v).or(seq)
+    id.or(v).or(array)
 }
 
 enum AfterReg {

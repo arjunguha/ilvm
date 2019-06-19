@@ -22,7 +22,7 @@ pub enum Op2 {
 pub enum Printable {
     Id(String),
     Val(Val),
-    Seq(Val, Val),
+    Array(Val, Val),
 }
 
 #[derive(Debug, PartialEq)]
