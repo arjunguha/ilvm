@@ -68,6 +68,12 @@ fn lex(s: &str) -> Result<Vec<Tok>, Error> {
 
 fn parse_token(input: &str) -> IResult<&str, Tok> {
     alt((
+        // Try to parse integers first (including negative ones)
+        // This must come before operators to handle negative numbers correctly
+        // When we see "-7", parse_int32 will match it as a negative integer
+        // When we see "r0 - r1", parse_int32 will fail on "-" (no digit immediately after),
+        // and then the operator parser will match "-" as Op2(Sub)
+        parse_int32,
         alt((
             value(Tok::LBrace, tag("{")),
             value(Tok::RBrace, tag("}")),
@@ -96,7 +102,6 @@ fn parse_token(input: &str) -> IResult<&str, Tok> {
             value(Tok::Print, tag("print")),
             value(Tok::Array, tag("array")),
         )),
-        parse_int32,
         parse_reg,
         parse_id,
     ))(input)

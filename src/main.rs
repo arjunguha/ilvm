@@ -284,5 +284,32 @@ mod tests {
         assert!(r == 1);
     }
 
+    #[test]
+    fn test_negative_immediates() {
+        // Test parsing negative integers (GitHub issue #3)
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                r0 = -7;
+                exit(r0);
+            }"#,
+        ).unwrap();
+        assert!(r == -7);
+    }
+
+    #[test]
+    fn test_negative_arithmetic() {
+        // Test that negative integers work with arithmetic operations
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                r0 = -7;
+                r1 = r0 - 5;
+                exit(r1);
+            }"#,
+        ).unwrap();
+        assert!(r == -12);
+    }
+
 
 }
