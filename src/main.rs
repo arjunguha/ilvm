@@ -311,5 +311,28 @@ mod tests {
         assert!(r == -12);
     }
 
+    #[test]
+    fn test_malloc_oom() {
+        // Test that malloc correctly fails when out of memory (GitHub issue #6)
+        // This program allocates memory in a loop without freeing, which should
+        // eventually fail with OOM instead of corrupting the free list
+        // Use a small memory limit (20 words) so it fails quickly
+        let r = super::parse_and_eval(
+            r#"
+            block 0 {
+                r0 = malloc(1);
+                *r0 = 1234;
+                goto(0);
+            }"#,
+            20,  // small memory limit
+            10,  // num registers
+        );
+        assert!(r.is_err());
+        match r {
+            Err(super::Error::Runtime(msg)) => assert!(msg.contains("OOM") || msg.contains("malloc")),
+            _ => panic!("Expected Runtime error with OOM message"),
+        }
+    }
+
 
 }

@@ -71,7 +71,7 @@ fn malloc(free_list: FreeList, size: usize) -> Option<(FreeList, usize)> {
                 Some((*rest, base))
             } else if size < free_size {
                 Some((
-                    FreeList::Node(base + size, free_size - base, rest),
+                    FreeList::Node(base + size, free_size - size, rest),
                     base,
                 ))
             } else {
