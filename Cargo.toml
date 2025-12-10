@@ -11,5 +11,5 @@ readme = "README.md"
 travis-ci = { repository = "plasma-umass/ilvm", branch = "master" }
 
 [dependencies]
-combine = "3.6.2"
+nom = "7.1"
 clap = "2.32.0"

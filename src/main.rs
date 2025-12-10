@@ -1,7 +1,4 @@
-#![recursion_limit = "128"]
-
-#[macro_use]
-extern crate combine;
+extern crate nom;
 extern crate clap;
 
 mod error;
