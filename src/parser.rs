@@ -1,3 +1,4 @@
+use error::Error;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -6,9 +7,8 @@ use nom::{
     sequence::{delimited, pair, preceded, tuple},
     IResult,
 };
-use syntax::*;
-use error::Error;
 use std::fmt;
+use syntax::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Tok {
@@ -25,10 +25,12 @@ pub enum Tok {
     Exit,
     Malloc,
     Print,
+    PrintStr,
     Array,
     Comma,
     Free,
     Block,
+    Op1(Op1),
     Op2(Op2),
     Int32(i32),
     Reg(usize),
@@ -45,23 +47,27 @@ impl fmt::Display for Tok {
 fn lex(s: &str) -> Result<Vec<Tok>, Error> {
     let mut tokens = Vec::new();
     let mut input = s.trim_start();
-    
+
     while !input.is_empty() {
         // Skip whitespace
-        if let Ok((rest, _)) = multispace1::<_, nom::error::Error<&str>>(input) {
+        if let Ok((rest, _)) = multispace1::<_, nom::error::Error<&str>>(input)
+        {
             input = rest;
             continue;
         }
-        
+
         // Try to match tokens
         if let Ok((rest, tok)) = parse_token(input) {
             tokens.push(tok);
             input = rest;
         } else {
-            return Err(Error::Parse(format!("Unexpected character at: {}", &input[..input.len().min(20)])));
+            return Err(Error::Parse(format!(
+                "Unexpected character at: {}",
+                &input[..input.len().min(20)]
+            )));
         }
     }
-    
+
     tokens.push(Tok::Eof);
     Ok(tokens)
 }
@@ -81,13 +87,20 @@ fn parse_token(input: &str) -> IResult<&str, Tok> {
             value(Tok::RParen, tag(")")),
             value(Tok::Comma, tag(",")),
             value(Tok::Semi, tag(";")),
-            value(Tok::Equal, tag("=")),
             value(Tok::Op2(Op2::Eq), tag("==")),
+            value(Tok::Op2(Op2::UShr), tag(">>>")),
+            value(Tok::Op2(Op2::Shr), tag(">>")),
+            value(Tok::Op2(Op2::Shl), tag("<<")),
+            value(Tok::Equal, tag("=")),
             value(Tok::Op2(Op2::Add), tag("+")),
             value(Tok::Op2(Op2::Sub), tag("-")),
             value(Tok::Op2(Op2::Mul), tag("*")),
             value(Tok::Op2(Op2::Div), tag("/")),
             value(Tok::Op2(Op2::Mod), tag("%")),
+            value(Tok::Op2(Op2::BitAnd), tag("&")),
+            value(Tok::Op2(Op2::BitOr), tag("|")),
+            value(Tok::Op2(Op2::BitXor), tag("^")),
+            value(Tok::Op1(Op1::BitNot), tag("~")),
             value(Tok::Op2(Op2::LT), tag("<")),
         )),
         alt((
@@ -99,6 +112,7 @@ fn parse_token(input: &str) -> IResult<&str, Tok> {
             value(Tok::Malloc, tag("malloc")),
             value(Tok::Free, tag("free")),
             value(Tok::Block, tag("block")),
+            value(Tok::PrintStr, tag("print_str")),
             value(Tok::Print, tag("print")),
             value(Tok::Array, tag("array")),
         )),
@@ -118,15 +132,18 @@ fn parse_int32(input: &str) -> IResult<&str, Tok> {
 }
 
 fn parse_reg(input: &str) -> IResult<&str, Tok> {
-    map(
-        preceded(char('r'), digit1),
-        |s: &str| Tok::Reg(s.parse::<usize>().unwrap()),
-    )(input)
+    map(preceded(char('r'), digit1), |s: &str| {
+        Tok::Reg(s.parse::<usize>().unwrap())
+    })(input)
 }
 
 fn parse_id(input: &str) -> IResult<&str, Tok> {
     map(
-        delimited(char('"'), take_while1(|c: char| c.is_alphanumeric()), char('"')),
+        delimited(
+            char('"'),
+            take_while1(|c: char| c.is_alphanumeric()),
+            char('"'),
+        ),
         |s: &str| Tok::Id(s.to_string()),
     )(input)
 }
@@ -134,35 +151,54 @@ fn parse_id(input: &str) -> IResult<&str, Tok> {
 fn reg(input: &[Tok]) -> IResult<&[Tok], usize> {
     match input.first() {
         Some(Tok::Reg(n)) => Ok((&input[1..], *n)),
-        _ => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
     }
 }
 
 fn i32_token(input: &[Tok]) -> IResult<&[Tok], i32> {
     match input.first() {
         Some(Tok::Int32(n)) => Ok((&input[1..], *n)),
-        _ => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
     }
 }
 
 fn val(input: &[Tok]) -> IResult<&[Tok], Val> {
-    alt((
-        map(reg, Val::Reg),
-        map(i32_token, Val::Imm),
-    ))(input)
+    alt((map(reg, Val::Reg), map(i32_token, Val::Imm)))(input)
 }
 
 fn op2_token(input: &[Tok]) -> IResult<&[Tok], Op2> {
     match input.first() {
         Some(Tok::Op2(op)) => Ok((&input[1..], op.clone())),
-        _ => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
+    }
+}
+
+fn op1_token(input: &[Tok]) -> IResult<&[Tok], Op1> {
+    match input.first() {
+        Some(Tok::Op1(op)) => Ok((&input[1..], op.clone())),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
     }
 }
 
 fn id_token(input: &[Tok]) -> IResult<&[Tok], String> {
     match input.first() {
         Some(Tok::Id(s)) => Ok((&input[1..], s.clone())),
-        _ => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
     }
 }
 
@@ -187,19 +223,31 @@ fn printable(input: &[Tok]) -> IResult<&[Tok], Printable> {
 fn token_match(tok: Tok) -> impl Fn(&[Tok]) -> IResult<&[Tok], ()> {
     move |input: &[Tok]| {
         match input.first() {
-            Some(t) if std::mem::discriminant(t) == std::mem::discriminant(&tok) => {
+            Some(t)
+                if std::mem::discriminant(t)
+                    == std::mem::discriminant(&tok) =>
+            {
                 // For Tok::Op2, we need to check the value too
                 match (&tok, t) {
-                    (Tok::Op2(op1), Tok::Op2(op2)) if op1 == op2 => Ok((&input[1..], ())),
-                    (Tok::Op2(_), Tok::Op2(_)) => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+                    (Tok::Op2(op1), Tok::Op2(op2)) if op1 == op2 => {
+                        Ok((&input[1..], ()))
+                    }
+                    (Tok::Op2(_), Tok::Op2(_)) => {
+                        Err(nom::Err::Error(nom::error::Error::new(
+                            input,
+                            nom::error::ErrorKind::Tag,
+                        )))
+                    }
                     _ => Ok((&input[1..], ())),
                 }
             }
-            _ => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+            _ => Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            ))),
         }
     }
 }
-
 
 fn instr(input: &[Tok]) -> IResult<&[Tok], Instr> {
     alt((
@@ -211,6 +259,7 @@ fn instr(input: &[Tok]) -> IResult<&[Tok], Instr> {
         parse_store,
         parse_ifz,
         parse_free,
+        parse_print_str,
         parse_print,
     ))(input)
 }
@@ -242,34 +291,53 @@ fn parse_exit(input: &[Tok]) -> IResult<&[Tok], Instr> {
 fn parse_copy_or_op2(input: &[Tok]) -> IResult<&[Tok], Instr> {
     let (input, r) = reg(input)?;
     let (input, _) = token_match(Tok::Equal)(input)?;
-    
+
     // Try load: *v
     if let Ok((input_after_mul, _)) = token_match(Tok::Op2(Op2::Mul))(input) {
         if let Ok((input_after_val, v)) = val(input_after_mul) {
-            if let Ok((input_after_semi, _)) = token_match(Tok::Semi)(input_after_val) {
+            if let Ok((input_after_semi, _)) =
+                token_match(Tok::Semi)(input_after_val)
+            {
                 let (input, rest) = instr(input_after_semi)?;
                 return Ok((input, Instr::Load(r, v, Box::new(rest))));
             }
         }
     }
-    
+
     // Try malloc: malloc(v)
     if let Ok((input_after_malloc, _)) = token_match(Tok::Malloc)(input) {
-        if let Ok((input_after_lparen, _)) = token_match(Tok::LParen)(input_after_malloc) {
+        if let Ok((input_after_lparen, _)) =
+            token_match(Tok::LParen)(input_after_malloc)
+        {
             if let Ok((input_after_val, v)) = val(input_after_lparen) {
-                if let Ok((input_after_rparen, _)) = token_match(Tok::RParen)(input_after_val) {
-                    if let Ok((input_after_semi, _)) = token_match(Tok::Semi)(input_after_rparen) {
+                if let Ok((input_after_rparen, _)) =
+                    token_match(Tok::RParen)(input_after_val)
+                {
+                    if let Ok((input_after_semi, _)) =
+                        token_match(Tok::Semi)(input_after_rparen)
+                    {
                         let (input, rest) = instr(input_after_semi)?;
-                        return Ok((input, Instr::Malloc(r, v, Box::new(rest))));
+                        return Ok((
+                            input,
+                            Instr::Malloc(r, v, Box::new(rest)),
+                        ));
                     }
                 }
             }
         }
     }
-    
+
+    // Try unary op: op v
+    if let Ok((input_after_op, op)) = op1_token(input) {
+        let (input, v) = val(input_after_op)?;
+        let (input, _) = token_match(Tok::Semi)(input)?;
+        let (input, rest) = instr(input)?;
+        return Ok((input, Instr::Op1(r, op, v, Box::new(rest))));
+    }
+
     // Try copy or op2: v or v op v
     let (input, v1) = val(input)?;
-    
+
     // Check if there's an operator
     if let Ok((input_after_op, op)) = op2_token(input) {
         let (input, v2) = val(input_after_op)?;
@@ -282,6 +350,16 @@ fn parse_copy_or_op2(input: &[Tok]) -> IResult<&[Tok], Instr> {
         let (input, rest) = instr(input)?;
         Ok((input, Instr::Copy(r, v1, Box::new(rest))))
     }
+}
+
+fn parse_print_str(input: &[Tok]) -> IResult<&[Tok], Instr> {
+    let (input, _) = token_match(Tok::PrintStr)(input)?;
+    let (input, _) = token_match(Tok::LParen)(input)?;
+    let (input, v) = val(input)?;
+    let (input, _) = token_match(Tok::RParen)(input)?;
+    let (input, _) = token_match(Tok::Semi)(input)?;
+    let (input, rest) = instr(input)?;
+    Ok((input, Instr::PrintStr(v, Box::new(rest))))
 }
 
 fn parse_load(input: &[Tok]) -> IResult<&[Tok], Instr> {
@@ -348,10 +426,10 @@ fn block(input: &[Tok]) -> IResult<&[Tok], Block> {
 
 pub fn parse(input: &str) -> Result<Vec<Block>, Error> {
     let tokens = lex(input)?;
-    
+
     let mut blocks = Vec::new();
     let mut remaining = &tokens[..];
-    
+
     while !remaining.is_empty() {
         if remaining.len() == 1 && matches!(remaining[0], Tok::Eof) {
             break;
@@ -366,11 +444,14 @@ pub fn parse(input: &str) -> Result<Vec<Block>, Error> {
             }
         }
     }
-    
+
     // Check for Eof token
     if !remaining.is_empty() && !matches!(remaining[0], Tok::Eof) {
-        return Err(Error::Parse(format!("Expected end of input, found: {:?}", remaining[0])));
+        return Err(Error::Parse(format!(
+            "Expected end of input, found: {:?}",
+            remaining[0]
+        )));
     }
-    
+
     Ok(blocks)
 }

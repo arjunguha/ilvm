@@ -49,8 +49,9 @@ Note that the order in which blocks appear is not relevant.
 ### Register, Loads, and Stores
 
 ILVM has registers numbered *r0* through *rn*, where *n* can be set by the
-user. ILVM supports basic binary operations (+, -, *) that take either
-registers or constants as arguments, and store their results in registers.
+user. ILVM supports basic binary operations (+, -, *, /, %, comparisons, and
+bitwise operators) that take either registers or constants as arguments, and
+store their results in registers.
 It also supports operations to load data into registers from the heap, and to
 store values from registers in the heap. Some examples of these operations
 are given below:
@@ -119,13 +120,30 @@ in every block *must* end with either *exit*, *goto*, or *abort*. In other
 words, a program cannot "fall-through" from one block to the next, and must
 explicitly jump to another block or terminate.
 
+### Strings and command-line arguments
+
+The *print_str(a)* instruction prints a NULL-terminated ASCII string starting
+at heap address *a*. ASCII bytes are packed into 32-bit machine words in
+network byte order. For example, the string `"ABC"` is represented by one word:
+
+```
+0x41424300
+```
+
+On startup, heap address 1 stores the number of command-line arguments. Heap
+addresses 2 through *N + 1* store pointers to the *N* argument strings, and the
+packed, NULL-terminated strings follow. Register *r0* is initialized to the
+first heap cell after those strings. This is also the first address that
+*malloc* may return.
+
 ### Memory allocation
 
 The *word size* of ILVM is 32-bits.
 
-A program can read and write to any memory address. The initial value stored at
-all memory addresses and registers is zero. Each memory location and register
-is one word long (i.e., 32 bits).
+A program can read and write to any memory address. Except for the startup
+command-line argument data described above, the initial value stored at all
+memory addresses and registers is zero. Each memory location and register is
+one word long (i.e., 32 bits).
 
 ILVM has a *malloc(n)* instruction that returns the address of
 a free block of memory that is *n* **words** long, and a *free(a)* instruction that
@@ -152,12 +170,21 @@ Operators        op ::= "+"
                       | "*"
                       | "/"
                       | "%"
+                      | "&"
+                      | "|"
+                      | "^"
+                      | ">>"
+                      | ">>>"
+                      | "<<"
                       | "=="
                       | "<"
+
+Unary Operators op1 ::= "~"
 
 Instructions  instr ::= "goto" "(" val ")" ";"
                       | "exit" "(" val ")" ";"
                       | "abort" ";"
+                      | r "=" op1 val ";" instr
                       | r "=" val op val ";" instr
                       | r "=" val ";" instr
                       | r "=" "*" val ";" instr
@@ -165,6 +192,7 @@ Instructions  instr ::= "goto" "(" val ")" ";"
                       | "ifz" val "{" instr "}" "else" "{" instr "}""
                       | r "=" "malloc" "(" val ")" ";" instr
                       | "free" "("r ")" ";" instr
+                      | "print_str" "(" val ")" ";" instr
 
 Blocks        block ::= "block" n "{" instr "}"
 

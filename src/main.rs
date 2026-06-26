@@ -1,5 +1,5 @@
-extern crate nom;
 extern crate clap;
+extern crate nom;
 
 mod error;
 mod eval;
@@ -17,10 +17,11 @@ fn parse_and_eval(
     code: &str,
     mem_limit: usize,
     reg_limit: usize,
+    cli_args: &[String],
 ) -> Result<i32, Error> {
     let blocks = try!(parser::parse(code));
     let blocks = try!(tc::tc(blocks));
-    return eval::eval(mem_limit, reg_limit, blocks);
+    return eval::eval(mem_limit, reg_limit, blocks, cli_args);
 }
 
 fn main_result() -> Result<i32, Error> {
@@ -34,20 +35,30 @@ fn main_result() -> Result<i32, Error> {
                 .default_value("1024")
                 .help("Sets a memory limit in words")
                 .takes_value(true),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("INPUT")
                 .value_name("FILENAME")
                 .help("Sets the input file to use")
                 .required(true)
                 .index(1),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("reglimit")
                 .short("r")
                 .value_name("REG_LIMIT")
                 .default_value("32")
                 .long("num-registers")
                 .help("Set the number of registers"),
-        ).get_matches();
+        )
+        .arg(
+            Arg::with_name("ARGS")
+                .value_name("ARGS")
+                .help("Command-line arguments passed to the ILVM program")
+                .multiple(true)
+                .index(2),
+        )
+        .get_matches();
     let path = args.value_of("INPUT").unwrap();
     let mut file = try!(File::open(&path));
     let mut buf = String::new();
@@ -56,6 +67,10 @@ fn main_result() -> Result<i32, Error> {
         &buf[..],
         args.value_of("memlimit").unwrap().parse::<usize>().unwrap(),
         args.value_of("reglimit").unwrap().parse::<usize>().unwrap(),
+        &args
+            .values_of("ARGS")
+            .map(|values| values.map(|s| s.to_string()).collect::<Vec<_>>())
+            .unwrap_or_else(Vec::new),
     )
 }
 
@@ -72,26 +87,35 @@ fn main() {
 #[cfg(test)]
 mod tests {
 
-    use super::syntax::{Val, Printable, Instr};
+    use super::syntax::{Instr, Printable, Val};
 
     fn parse_and_eval(code: &str) -> Result<i32, super::error::Error> {
-        super::parse_and_eval(code, 500, 10)
+        super::parse_and_eval(code, 500, 10, &[])
     }
 
-    fn assert_code_eq_block(code : &str, expected_block : Instr) {
+    fn parse_and_eval_with_args(
+        code: &str,
+        args: &[String],
+    ) -> Result<i32, super::error::Error> {
+        super::parse_and_eval(code, 500, 10, args)
+    }
+
+    fn assert_code_eq_block(code: &str, expected_block: Instr) {
         match super::parser::parse(code) {
-            Result::Ok(blocks) => {
-                match super::tc::tc(blocks) {
-                    Result::Ok(blocks) =>
-                    match blocks.get(&0) {
-                        Option::Some(block) => assert_eq!(*block, expected_block),
-                        _ => assert!(false, "no zero block found in")
-                    }
-                    _ => assert!(false, "tc returned Error")
-                }
+            Result::Ok(blocks) => match super::tc::tc(blocks) {
+                Result::Ok(blocks) => match blocks.get(&0) {
+                    Option::Some(block) => assert_eq!(*block, expected_block),
+                    _ => assert!(false, "no zero block found in"),
+                },
+                _ => assert!(false, "tc returned Error"),
+            },
+            Result::Err(super::Error::Parse(s)) => {
+                assert!(false, format!("parse error, {}", s))
             }
-            Result::Err(super::Error::Parse(s)) => assert!(false, format!("parse error, {}", s)),
-            _ => assert!(false, format!("parse returned Error on input, {}", code))
+            _ => assert!(
+                false,
+                format!("parse returned Error on input, {}", code)
+            ),
         };
     }
 
@@ -102,7 +126,8 @@ mod tests {
             block 0 {
                 exit(200);
             }  "#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 200);
     }
 
@@ -119,31 +144,29 @@ mod tests {
 
     #[test]
     fn test_print_parsing() {
-        let code =
-            r#"
+        let code = r#"
             block 0 {
                 print(r0);
                 exit(200);
             }"#;
-        let expected_block =
-            Instr::Print(Printable::Val(Val::Reg(0)),
-            Box::new(Instr::Exit(Val::Imm(200))
-        ));
+        let expected_block = Instr::Print(
+            Printable::Val(Val::Reg(0)),
+            Box::new(Instr::Exit(Val::Imm(200))),
+        );
         assert_code_eq_block(code, expected_block);
     }
 
     #[test]
     fn test_print_array_parsing() {
-        let code =
-            r#"
+        let code = r#"
             block 0 {
                 print(array(r0, 6));
                 exit(200);
             }"#;
-        let expected_block =
-            Instr::Print(Printable::Array(Val::Reg(0), Val::Imm(6)),
-            Box::new(Instr::Exit(Val::Imm(200))
-        ));
+        let expected_block = Instr::Print(
+            Printable::Array(Val::Reg(0), Val::Imm(6)),
+            Box::new(Instr::Exit(Val::Imm(200))),
+        );
         assert_code_eq_block(code, expected_block);
     }
 
@@ -154,7 +177,8 @@ mod tests {
             block 0 {
                 exit(200);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 200);
     }
 
@@ -167,7 +191,8 @@ mod tests {
                 r2 = r0;
                 exit(r2);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 200);
     }
 
@@ -181,7 +206,8 @@ mod tests {
                 r3 = r0 + r1;
                 exit(r3);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 211);
     }
 
@@ -195,7 +221,8 @@ mod tests {
                 r1 = *r0;
                 exit(r1);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 42);
     }
 
@@ -211,7 +238,8 @@ mod tests {
                 r2 = r2 + 1;
                 exit(r2);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 201);
     }
 
@@ -228,7 +256,8 @@ mod tests {
                 r2 = r2 + r3;
                 exit(r2);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 210);
     }
 
@@ -245,7 +274,8 @@ mod tests {
                     exit(30);
                 }
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 30);
     }
 
@@ -268,7 +298,8 @@ mod tests {
                     goto(1);
                 }
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == 120);
     }
 
@@ -280,8 +311,97 @@ mod tests {
                 r0 = malloc(10);
                 exit(r0);
             }"#,
-        ).unwrap();
-        assert!(r == 1);
+        )
+        .unwrap();
+        assert!(r == 2);
+    }
+
+    #[test]
+    fn test_cli_arg_layout_no_args() {
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                r1 = *1;
+                r2 = r0 + r1;
+                exit(r2);
+            }"#,
+        )
+        .unwrap();
+        assert!(r == 2);
+    }
+
+    #[test]
+    fn test_cli_arg_layout_with_args() {
+        let args = vec!["hi".to_string()];
+        let r = parse_and_eval_with_args(
+            r#"
+            block 0 {
+                r1 = *1;
+                r2 = *2;
+                r3 = *r2;
+                r6 = r1 + r2;
+                r6 = r6 + r3;
+                r6 = r6 + r0;
+                exit(r6);
+            }"#,
+            &args,
+        )
+        .unwrap();
+        assert!(r == 1751711752);
+    }
+
+    #[test]
+    fn test_malloc_starts_after_cli_args() {
+        let args = vec!["abc".to_string(), "defg".to_string()];
+        let r = parse_and_eval_with_args(
+            r#"
+            block 0 {
+                r1 = malloc(1);
+                exit(r1);
+            }"#,
+            &args,
+        )
+        .unwrap();
+        assert!(r == 7);
+    }
+
+    #[test]
+    fn test_print_str() {
+        let args = vec!["hello".to_string()];
+        let r = parse_and_eval_with_args(
+            r#"
+            block 0 {
+                r1 = *2;
+                print_str(r1);
+                exit(0);
+            }"#,
+            &args,
+        )
+        .unwrap();
+        assert!(r == 0);
+    }
+
+    #[test]
+    fn test_bitwise_ops() {
+        let r = parse_and_eval(
+            r#"
+            block 0 {
+                r0 = 12 & 10;
+                r1 = 12 | 10;
+                r2 = r0 ^ r1;
+                r3 = ~ r2;
+                r4 = -8 >> 1;
+                r5 = -8 >>> 1;
+                r6 = 3 << 4;
+                r7 = r3 + r4;
+                r7 = r7 + r6;
+                r8 = r5 == 2147483644;
+                r7 = r7 + r8;
+                exit(r7);
+            }"#,
+        )
+        .unwrap();
+        assert!(r == 38);
     }
 
     #[test]
@@ -293,7 +413,8 @@ mod tests {
                 r0 = -7;
                 exit(r0);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == -7);
     }
 
@@ -307,7 +428,8 @@ mod tests {
                 r1 = r0 - 5;
                 exit(r1);
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r == -12);
     }
 
@@ -324,15 +446,16 @@ mod tests {
                 *r0 = 1234;
                 goto(0);
             }"#,
-            20,  // small memory limit
-            10,  // num registers
+            20, // small memory limit
+            10, // num registers
+            &[],
         );
         assert!(r.is_err());
         match r {
-            Err(super::Error::Runtime(msg)) => assert!(msg.contains("OOM") || msg.contains("malloc")),
+            Err(super::Error::Runtime(msg)) => {
+                assert!(msg.contains("OOM") || msg.contains("malloc"))
+            }
             _ => panic!("Expected Runtime error with OOM message"),
         }
     }
-
-
 }
