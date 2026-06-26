@@ -204,3 +204,13 @@ Command-Line Interface
 ----------------------
 
 Run `ilvm --help` for documentation.
+
+ILVM program arguments appear after the program filename as an ordered sequence
+of tagged arguments:
+
+```
+ilvm program.ilvm -l literal-arg -f path/to/file.txt -l another-literal
+```
+
+The *-l* marker passes the following value literally. The *-f* marker reads the
+following filename and passes the file contents as that argument.

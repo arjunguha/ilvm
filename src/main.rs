@@ -7,7 +7,7 @@ mod parser;
 mod syntax;
 mod tc;
 
-use clap::{App, Arg};
+use clap::{App, AppSettings, Arg};
 use error::*;
 use std::fs::File;
 use std::io::prelude::*;
@@ -24,9 +24,44 @@ fn parse_and_eval(
     return eval::eval(mem_limit, reg_limit, blocks, cli_args);
 }
 
+fn parse_cli_args<'a, I>(args: I) -> Result<Vec<String>, Error>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let mut parsed_args = Vec::new();
+    let mut iter = args.into_iter();
+
+    while let Some(kind) = iter.next() {
+        let value = iter.next().ok_or(Error::Usage(format!(
+            "expected value after ILVM argument marker {}",
+            kind
+        )))?;
+
+        match kind {
+            "-l" => parsed_args.push(value.to_string()),
+            "-f" => {
+                let mut file = try!(File::open(value));
+                let mut buf = String::new();
+                try!(file.read_to_string(&mut buf));
+                parsed_args.push(buf);
+            }
+            _ => {
+                return Err(Error::Usage(format!(
+                    "expected -l or -f in ILVM arguments, found {}",
+                    kind
+                )))
+            }
+        }
+    }
+
+    Ok(parsed_args)
+}
+
 fn main_result() -> Result<i32, Error> {
     let args = App::new("ILVM")
         .version(env!("CARGO_PKG_VERSION"))
+        .setting(AppSettings::AllowLeadingHyphen)
+        .setting(AppSettings::TrailingVarArg)
         .arg(
             Arg::with_name("memlimit")
                 .short("m")
@@ -54,8 +89,9 @@ fn main_result() -> Result<i32, Error> {
         .arg(
             Arg::with_name("ARGS")
                 .value_name("ARGS")
-                .help("Command-line arguments passed to the ILVM program")
+                .help("Ordered ILVM arguments: -l literal or -f filename")
                 .multiple(true)
+                .allow_hyphen_values(true)
                 .index(2),
         )
         .get_matches();
@@ -63,14 +99,15 @@ fn main_result() -> Result<i32, Error> {
     let mut file = try!(File::open(&path));
     let mut buf = String::new();
     try!(file.read_to_string(&mut buf));
+    let ilvm_args = match args.values_of("ARGS") {
+        Some(values) => parse_cli_args(values)?,
+        None => Vec::new(),
+    };
     parse_and_eval(
         &buf[..],
         args.value_of("memlimit").unwrap().parse::<usize>().unwrap(),
         args.value_of("reglimit").unwrap().parse::<usize>().unwrap(),
-        &args
-            .values_of("ARGS")
-            .map(|values| values.map(|s| s.to_string()).collect::<Vec<_>>())
-            .unwrap_or_else(Vec::new),
+        &ilvm_args,
     )
 }
 
@@ -88,6 +125,8 @@ fn main() {
 mod tests {
 
     use super::syntax::{Instr, Printable, Val};
+    use std::fs::{remove_file, File};
+    use std::io::Write;
 
     fn parse_and_eval(code: &str) -> Result<i32, super::error::Error> {
         super::parse_and_eval(code, 500, 10, &[])
@@ -117,6 +156,49 @@ mod tests {
                 format!("parse returned Error on input, {}", code)
             ),
         };
+    }
+
+    #[test]
+    fn test_parse_cli_args_literals_and_files() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("ilvm-test-{}.txt", std::process::id()));
+
+        {
+            let mut file = File::create(&path).unwrap();
+            file.write_all(b"file contents").unwrap();
+        }
+
+        let path_str = path.to_string_lossy().to_string();
+        let args = vec!["-l", "arg1", "-f", &path_str, "-l", "arg2"];
+        let parsed = super::parse_cli_args(args).unwrap();
+        remove_file(&path).unwrap();
+
+        assert_eq!(
+            parsed,
+            vec![
+                "arg1".to_string(),
+                "file contents".to_string(),
+                "arg2".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_cli_args_rejects_unknown_marker() {
+        match super::parse_cli_args(vec!["-x", "arg"]) {
+            Err(super::Error::Usage(msg)) => assert!(msg.contains("-l or -f")),
+            _ => panic!("Expected Usage error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_cli_args_rejects_missing_value() {
+        match super::parse_cli_args(vec!["-l"]) {
+            Err(super::Error::Usage(msg)) => {
+                assert!(msg.contains("expected value"))
+            }
+            _ => panic!("Expected Usage error"),
+        }
     }
 
     #[test]
